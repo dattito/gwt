@@ -1,16 +1,18 @@
+use colored::*;
 use std::env;
 use std::fs;
+use std::io::{self, Write};
+use std::os::unix::fs::symlink;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::SystemTime;
-use colored::*;
-use std::io::{self, Write};
-use std::os::unix::fs::symlink;
 
-use crate::git_utils::{get_git_root, pull_latest, create_worktree, get_worktrees, get_default_branch};
-use crate::file_ops::{copy_files_from_config, link_files_from_config, cp_cow};
 use crate::config::get_files_from_config;
 use crate::direnv_utils::allow_direnv;
+use crate::file_ops::{copy_files_from_config, cp_cow, link_files_from_config};
+use crate::git_utils::{
+    create_worktree, get_default_branch, get_git_root, get_worktrees, pull_latest,
+};
 
 pub fn add_worktree(branch_name: &str, copy: bool, verbose: bool) -> Result<(), String> {
     if verbose {
@@ -20,14 +22,20 @@ pub fn add_worktree(branch_name: &str, copy: bool, verbose: bool) -> Result<(), 
     let dirname = branch_name.replace('/', "_");
 
     let git_root = get_git_root()?;
-    env::set_current_dir(&git_root).map_err(|e| format!("Failed to change to git root directory: {e}"))?;
+    env::set_current_dir(&git_root)
+        .map_err(|e| format!("Failed to change to git root directory: {e}"))?;
 
     pull_latest()?;
 
     create_worktree(branch_name, &dirname)?;
 
     let worktree_path = git_root.join(format!("../{dirname}"));
-    let worktree_path = fs::canonicalize(&worktree_path).map_err(|e| format!("Failed to canonicalize worktree path '{}': {e}", worktree_path.display()))?;
+    let worktree_path = fs::canonicalize(&worktree_path).map_err(|e| {
+        format!(
+            "Failed to canonicalize worktree path '{}': {e}",
+            worktree_path.display()
+        )
+    })?;
 
     if copy {
         copy_files_from_config(&worktree_path)?;
@@ -45,13 +53,17 @@ pub fn add_worktree(branch_name: &str, copy: bool, verbose: bool) -> Result<(), 
 
 pub fn sync_worktrees(copy_flag: bool) -> Result<(), String> {
     let git_root = get_git_root()?;
-    env::set_current_dir(&git_root).map_err(|e| format!("Failed to change to git root directory: {e}"))?;
+    env::set_current_dir(&git_root)
+        .map_err(|e| format!("Failed to change to git root directory: {e}"))?;
     let worktrees = get_worktrees()?;
     let config_path = git_root.join(".gwtconfig");
     let files_to_sync = get_files_from_config(&config_path)?;
 
     if files_to_sync.is_empty() {
-        println!("{} No .gwtconfig file found or it is empty. No files to sync.", "Info:".green());
+        println!(
+            "{} No .gwtconfig file found or it is empty. No files to sync.",
+            "Info:".green()
+        );
         return Ok(());
     }
 
@@ -62,8 +74,11 @@ pub fn sync_worktrees(copy_flag: bool) -> Result<(), String> {
         for worktree in &worktrees {
             let path = worktree.join(&item);
             if path.exists() {
-                let metadata = fs::metadata(&path).map_err(|e| format!("Failed to get metadata for {}: {e}", path.display()))?;
-                let modified_time = metadata.modified().map_err(|e| format!("Failed to get modified time for {}: {e}", path.display()))?;
+                let metadata = fs::metadata(&path)
+                    .map_err(|e| format!("Failed to get metadata for {}: {e}", path.display()))?;
+                let modified_time = metadata.modified().map_err(|e| {
+                    format!("Failed to get modified time for {}: {e}", path.display())
+                })?;
 
                 if most_recent_time.is_none() || modified_time > most_recent_time.unwrap() {
                     most_recent_time = Some(modified_time);
@@ -77,22 +92,45 @@ pub fn sync_worktrees(copy_flag: bool) -> Result<(), String> {
                 let dest_path = worktree.join(&item);
                 if src_path.as_path() != dest_path.as_path() {
                     if let Some(parent) = dest_path.parent() {
-                        fs::create_dir_all(parent).map_err(|e| format!("Failed to create directory {}: {e}", parent.display()))?;
+                        fs::create_dir_all(parent).map_err(|e| {
+                            format!("Failed to create directory {}: {e}", parent.display())
+                        })?;
                     }
 
                     if copy_flag {
                         cp_cow(&src_path, &dest_path)?;
-                        println!("{} Synced '{}' to {} (copied)", "Info:".green(), item, worktree.display());
+                        println!(
+                            "{} Synced '{}' to {} (copied)",
+                            "Info:".green(),
+                            item,
+                            worktree.display()
+                        );
                     } else {
                         // Attempt to symlink first
                         let symlink_result = symlink(&src_path, &dest_path);
                         if symlink_result.is_ok() {
-                            println!("{} Synced '{}' to {} (linked)", "Info:".green(), item, worktree.display());
+                            println!(
+                                "{} Synced '{}' to {} (linked)",
+                                "Info:".green(),
+                                item,
+                                worktree.display()
+                            );
                         } else {
                             // Fallback to copy if symlink fails
-                            eprintln!("{} Failed to symlink '{}' to {} ({:?}). Falling back to copy.", "Warning:".yellow(), item, worktree.display(), symlink_result.unwrap_err());
+                            eprintln!(
+                                "{} Failed to symlink '{}' to {} ({:?}). Falling back to copy.",
+                                "Warning:".yellow(),
+                                item,
+                                worktree.display(),
+                                symlink_result.unwrap_err()
+                            );
                             cp_cow(&src_path, &dest_path)?;
-                            println!("{} Synced '{}' to {} (copied)", "Info:".green(), item, worktree.display());
+                            println!(
+                                "{} Synced '{}' to {} (copied)",
+                                "Info:".green(),
+                                item,
+                                worktree.display()
+                            );
                         }
                     }
                 }
@@ -107,7 +145,8 @@ pub fn clone_repo(repo: &str) -> Result<(), String> {
     let repo_name = repo.split('/').next_back().unwrap_or(repo);
     println!("Cloning into '{repo_name}'...");
 
-    fs::create_dir(repo_name).map_err(|e| format!("Failed to create directory {repo_name}: {e}"))?;
+    fs::create_dir(repo_name)
+        .map_err(|e| format!("Failed to create directory {repo_name}: {e}"))?;
     env::set_current_dir(repo_name).map_err(|e| format!("Failed to cd into {repo_name}: {e}"))?;
 
     let clone_status = Command::new("gh")
@@ -174,10 +213,13 @@ pub fn init_gwtconfig() -> Result<(), String> {
         }
 
         print!("Should '{trimmed_line}' be added to .gwtconfig? (y/N): ");
-        io::stdout().flush().map_err(|e| format!("Failed to flush stdout: {e}"))?;
+        io::stdout()
+            .flush()
+            .map_err(|e| format!("Failed to flush stdout: {e}"))?;
 
         let mut answer = String::new();
-        io::stdin().read_line(&mut answer)
+        io::stdin()
+            .read_line(&mut answer)
             .map_err(|e| format!("Failed to read line: {e}"))?;
 
         if answer.trim().eq_ignore_ascii_case("y") {
@@ -194,7 +236,11 @@ pub fn init_gwtconfig() -> Result<(), String> {
     fs::write(&gwtconfig_path, content_to_write)
         .map_err(|e| format!("Failed to write .gwtconfig: {e}"))?;
 
-    println!("{} .gwtconfig created/updated at {}.", "Success:".green(), gwtconfig_path.display());
+    println!(
+        "{} .gwtconfig created/updated at {}.",
+        "Success:".green(),
+        gwtconfig_path.display()
+    );
 
     Ok(())
 }

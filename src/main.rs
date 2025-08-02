@@ -1,10 +1,10 @@
 use clap::{Parser, Subcommand};
 
 mod commands;
-mod git_utils;
-mod file_ops;
 mod config;
 mod direnv_utils;
+mod file_ops;
+mod git_utils;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -47,7 +47,11 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match &cli.command {
-        Commands::Add { branch_name, copy, verbose } => commands::add_worktree(branch_name, *copy, *verbose),
+        Commands::Add {
+            branch_name,
+            copy,
+            verbose,
+        } => commands::add_worktree(branch_name, *copy, *verbose),
         Commands::Sync { copy } => commands::sync_worktrees(*copy),
         Commands::Clone { repo } => commands::clone_repo(repo),
         Commands::Init {} => commands::init_gwtconfig(),

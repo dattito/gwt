@@ -1,6 +1,6 @@
+use colored::*;
 use std::path::PathBuf;
 use std::process::Command;
-use colored::*;
 
 pub fn get_git_root() -> Result<PathBuf, String> {
     let output = Command::new("git")
@@ -13,7 +13,9 @@ pub fn get_git_root() -> Result<PathBuf, String> {
         return Err("Not in a git repository".to_string());
     }
 
-    Ok(PathBuf::from(String::from_utf8_lossy(&output.stdout).trim()))
+    Ok(PathBuf::from(
+        String::from_utf8_lossy(&output.stdout).trim(),
+    ))
 }
 
 pub fn pull_latest() -> Result<(), String> {
@@ -25,7 +27,10 @@ pub fn pull_latest() -> Result<(), String> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         if !stderr.contains("There is no tracking information for the current branch.") {
-            eprintln!("{} Unable to run git pull, there may not be an upstream", "Warning:".yellow());
+            eprintln!(
+                "{} Unable to run git pull, there may not be an upstream",
+                "Warning:".yellow()
+            );
         }
     }
     Ok(())
@@ -65,7 +70,9 @@ pub fn create_worktree(branch_name: &str, dirname: &str) -> Result<(), String> {
         .map_err(|e| format!("Failed to create git worktree: {e}"))?;
 
     if !status.success() {
-        return Err(format!("Failed to create git worktree for branch '{branch_name}'"));
+        return Err(format!(
+            "Failed to create git worktree for branch '{branch_name}'"
+        ));
     }
 
     Ok(())
