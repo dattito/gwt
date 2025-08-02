@@ -10,9 +10,24 @@ use std::time::SystemTime;
 use crate::config::get_files_from_config;
 use crate::direnv_utils::allow_direnv;
 use crate::file_ops::{copy_files_from_config, cp_cow, link_files_from_config};
+use crate::git_utils;
 use crate::git_utils::{
     create_worktree, get_default_branch, get_git_root, get_worktrees, pull_latest,
 };
+
+fn dirname(branch_name: &str) -> String {
+    branch_name.replace("/", "_")
+}
+
+fn worktree_path(branch_name: &str) -> Result<PathBuf, String> {
+    let dirname = branch_name.replace('/', "_");
+
+    let git_root = get_git_root()?;
+
+    let worktree_path = git_root.join(format!("../{dirname}"));
+
+    Ok(worktree_path)
+}
 
 pub fn add_worktree(
     branch_name: &str,
@@ -24,8 +39,6 @@ pub fn add_worktree(
         println!("Verbose mode enabled");
     }
 
-    let dirname = branch_name.replace('/', "_");
-
     let git_root = get_git_root()?;
     env::set_current_dir(&git_root)
         .map_err(|e| format!("Failed to change to git root directory: {e}"))?;
@@ -34,9 +47,9 @@ pub fn add_worktree(
         pull_latest()?;
     }
 
-    create_worktree(branch_name, &dirname)?;
+    create_worktree(branch_name, &dirname(branch_name))?;
 
-    let worktree_path = git_root.join(format!("../{dirname}"));
+    let worktree_path = worktree_path(branch_name)?;
     let worktree_path = fs::canonicalize(&worktree_path).map_err(|e| {
         format!(
             "Failed to canonicalize worktree path '{}': {e}",
@@ -248,6 +261,32 @@ pub fn init_gwtconfig() -> Result<(), String> {
         "Success:".green(),
         gwtconfig_path.display()
     );
+
+    Ok(())
+}
+
+pub fn remove_worktree(branch_name: &str) -> Result<(), String> {
+    let current_dir =
+        env::current_dir().map_err(|e| format!("couldn't get current directory: {e}"))?;
+
+    env::set_current_dir(worktree_path(branch_name)?)
+        .map_err(|e| format!("Failed to change to branch directory: {e}"))?;
+
+    let has_changes = git_utils::branch_has_changes()?;
+
+    if has_changes {
+        return Err(format!(
+            "The branch {} has changes and cannot be safely removed",
+            branch_name.green()
+        ));
+    }
+
+    env::set_current_dir(current_dir)
+        .map_err(|e| format!("Failed to change back to current directory: {e}"))?;
+
+    git_utils::remove_worktree(&dirname(branch_name))?;
+
+    git_utils::delete_branch(branch_name)?;
 
     Ok(())
 }

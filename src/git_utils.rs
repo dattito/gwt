@@ -1,4 +1,5 @@
 use colored::*;
+use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -132,4 +133,53 @@ pub fn get_default_branch() -> Result<String, String> {
     }
 
     Err("Could not determine default branch.".to_string())
+}
+
+pub fn branch_has_changes() -> Result<bool, String> {
+    let output = Command::new("git")
+        .arg("status")
+        .arg("-s")
+        .output()
+        .map_err(|e| format!("Failed to execute git status -s: {e}"))?;
+
+    let has_changes = !output.stdout.is_empty();
+
+    Ok(has_changes)
+}
+
+pub fn remove_worktree(dirname: &str) -> Result<(), String> {
+    Command::new("git")
+        .arg("worktree")
+        .arg("remove")
+        .arg(dirname)
+        .output()
+        .map_err(|e| format!("Failed to execute git worktree remove: {e}"))?;
+
+    Ok(())
+}
+
+pub fn delete_branch(branch_name: &str) -> Result<(), String> {
+    let output = Command::new("git")
+        .arg("branch")
+        .arg("-d")
+        .arg(branch_name)
+        .output()
+        .map_err(|e| format!("Failed to execute git branch -d: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("is not fully merged") {
+            return Err(format!(
+                "The branch {} is not fully merged and will not be deleted",
+                branch_name.green(),
+            ));
+        }
+        return Err(format!(
+            "Could not delete branch {}: {}",
+            branch_name.green(),
+            stderr,
+        ));
+    }
+
+    Ok(())
 }

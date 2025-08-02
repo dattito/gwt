@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use colored::Colorize;
 
 mod commands;
 mod config;
@@ -32,6 +33,8 @@ enum Commands {
         #[arg(short, long)]
         pull: bool,
     },
+    /// Remove a new git worktree and the local branch
+    Remove { branch_name: String },
     /// Sync files between worktrees
     Sync {
         /// Copy files instead of creating symbolic links (linking is default)
@@ -60,10 +63,11 @@ fn main() {
         Commands::Sync { copy } => commands::sync_worktrees(*copy),
         Commands::Clone { repo } => commands::clone_repo(repo),
         Commands::Init {} => commands::init_gwtconfig(),
+        Commands::Remove { branch_name } => commands::remove_worktree(branch_name),
     };
 
     if let Err(e) = result {
-        eprintln!("{e}");
+        eprintln!("{} {e}", "Error:".red().bold());
         std::process::exit(1);
     }
 }
