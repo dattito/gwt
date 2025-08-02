@@ -14,7 +14,12 @@ use crate::git_utils::{
     create_worktree, get_default_branch, get_git_root, get_worktrees, pull_latest,
 };
 
-pub fn add_worktree(branch_name: &str, copy: bool, verbose: bool) -> Result<(), String> {
+pub fn add_worktree(
+    branch_name: &str,
+    copy: bool,
+    verbose: bool,
+    pull: bool,
+) -> Result<(), String> {
     if verbose {
         println!("Verbose mode enabled");
     }
@@ -25,7 +30,9 @@ pub fn add_worktree(branch_name: &str, copy: bool, verbose: bool) -> Result<(), 
     env::set_current_dir(&git_root)
         .map_err(|e| format!("Failed to change to git root directory: {e}"))?;
 
-    pull_latest()?;
+    if pull {
+        pull_latest()?;
+    }
 
     create_worktree(branch_name, &dirname)?;
 

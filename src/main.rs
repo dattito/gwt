@@ -27,6 +27,10 @@ enum Commands {
         /// Enable verbose output
         #[arg(short, long)]
         verbose: bool,
+
+        /// Run git pull internally before creating worktree
+        #[arg(short, long)]
+        pull: bool,
     },
     /// Sync files between worktrees
     Sync {
@@ -51,7 +55,8 @@ fn main() {
             branch_name,
             copy,
             verbose,
-        } => commands::add_worktree(branch_name, *copy, *verbose),
+            pull,
+        } => commands::add_worktree(branch_name, *copy, *verbose, *pull),
         Commands::Sync { copy } => commands::sync_worktrees(*copy),
         Commands::Clone { repo } => commands::clone_repo(repo),
         Commands::Init {} => commands::init_gwtconfig(),
