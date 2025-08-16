@@ -47,7 +47,7 @@ enum Commands {
         repo: String,
     },
     /// Initializes a .gwtconfig file based on .gitignore
-    Init {},
+    Init,
 }
 
 fn main() {
@@ -62,7 +62,7 @@ fn main() {
         } => commands::add_worktree(branch_name, *copy, *verbose, *pull),
         Commands::Sync { copy } => commands::sync_worktrees(*copy),
         Commands::Clone { repo } => commands::clone_repo(repo),
-        Commands::Init {} => commands::init_gwtconfig(),
+        Commands::Init => commands::init_gwtconfig(),
         Commands::Remove { branch_name } => commands::remove_worktree(branch_name),
     };
 
