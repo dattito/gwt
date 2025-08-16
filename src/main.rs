@@ -9,6 +9,7 @@ mod git_utils;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
+/// gwt (git work-tree) is an opininated CLI tool that should help managing git work-trees
 struct Cli {
     #[command(subcommand)]
     command: Commands,
